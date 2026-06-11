@@ -1,7 +1,10 @@
+import io
+import hashlib
 import json
 import requests
 import folium
 from streamlit_folium import st_folium
+from audio_recorder_streamlit import audio_recorder
 import streamlit as st
 from openai import OpenAI
 from datetime import date, timedelta
@@ -179,6 +182,35 @@ with tab1:
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
+
+    # 음성 입력
+    st.markdown("##### 🎙️ 음성으로 질문하기")
+    audio_bytes = audio_recorder(
+        text="  마이크 클릭 후 말씀하세요",
+        recording_color="#e74c3c",
+        neutral_color="#667eea",
+        icon_name="microphone",
+        icon_size="lg",
+    )
+    if audio_bytes:
+        audio_hash = hashlib.md5(audio_bytes).hexdigest()
+        if st.session_state.get("last_audio_hash") != audio_hash:
+            st.session_state.last_audio_hash = audio_hash
+            with st.spinner("🎙️ 음성을 텍스트로 변환 중..."):
+                try:
+                    audio_file = io.BytesIO(audio_bytes)
+                    audio_file.name = "recording.wav"
+                    transcript = client.audio.transcriptions.create(
+                        model="whisper-1",
+                        file=audio_file,
+                        language="ko",
+                    )
+                    st.session_state.pending_prompt = transcript.text
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"음성 인식 실패: {e}")
+
+    st.markdown("---")
 
     active_prompt = st.session_state.pending_prompt
     if active_prompt:
