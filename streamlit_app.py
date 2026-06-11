@@ -109,22 +109,24 @@ KO_TO_EN = {
 
 def geocode(place):
     """한글/영어 도시명 모두 지원하는 지오코딩 함수"""
-    candidates = [place]
-    if place in KO_TO_EN:
-        candidates.append(KO_TO_EN[place])
+    # 한글이면 영어로 변환, 아니면 원본 사용
+    search_term = KO_TO_EN.get(place, place)
 
-    for term in candidates:
+    # Open-Meteo 지오코딩 (안정적, 무료, 도시명에 최적화)
+    for term in ([search_term] if search_term == place else [search_term, place]):
         try:
             res = requests.get(
-                "https://nominatim.openstreetmap.org/search",
-                params={"q": term, "format": "json", "limit": 1},
-                headers={"User-Agent": "travel-chatbot/1.0", "Accept-Language": "ko,en"},
+                "https://geocoding-api.open-meteo.com/v1/search",
+                params={"name": term, "count": 1, "language": "ko", "format": "json"},
                 timeout=5,
             )
             data = res.json()
-            if data:
-                name = data[0].get("display_name", "").split(",")[0]
-                return float(data[0]["lat"]), float(data[0]["lon"]), name
+            if data.get("results"):
+                r = data["results"][0]
+                name = r.get("name", term)
+                country = r.get("country", "")
+                display = f"{name}, {country}" if country else name
+                return float(r["latitude"]), float(r["longitude"]), display
         except Exception:
             pass
     return None
