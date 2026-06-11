@@ -284,6 +284,8 @@ with tab1:
     active_prompt = st.session_state.pending_prompt
     if active_prompt:
         st.session_state.pending_prompt = None
+        # Python 3.14 + httpx UnicodeEncodeError 방지: ASCII 안전 문자열로 정규화
+        active_prompt = active_prompt.encode("utf-8").decode("utf-8")
 
     user_input = st.chat_input("여행에 대해 무엇이든 물어보세요 ✈️")
     prompt = active_prompt or user_input

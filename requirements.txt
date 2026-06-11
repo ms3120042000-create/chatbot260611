@@ -1,5 +1,6 @@
 streamlit
-openai
+openai>=1.60.0
+httpx>=0.27.2
 folium
 streamlit-folium
 requests
