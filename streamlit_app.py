@@ -4,6 +4,8 @@ import hashlib
 import json
 import requests
 import folium
+import pandas as pd
+import plotly.express as px
 from streamlit_folium import st_folium
 from audio_recorder_streamlit import audio_recorder
 import streamlit as st
@@ -167,7 +169,7 @@ if "checklist" not in st.session_state:
             items[f"{cat}||{item}"] = {"label": item, "category": cat, "done": False}
     st.session_state.checklist = items
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["💬 채팅", "🗺️ 지도", "☀️ 날씨", "📅 일정", "💰 예산", "📋 체크리스트"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["💬 채팅", "🗺️ 지도", "☀️ 날씨", "📅 일정", "💰 예산", "📋 체크리스트", "📊 데이터 분석"])
 
 # ── 탭 1: 채팅 ────────────────────────────────────────
 with tab1:
@@ -492,3 +494,132 @@ with tab6:
             st.session_state.checklist[k]["done"] = False
             st.session_state.pop(f"chk_{k}", None)
         st.rerun()
+
+# ── 탭 7: 데이터 분석 ─────────────────────────────────
+with tab7:
+    st.subheader("📊 데이터 분석")
+    st.caption("CSV, Excel, JSON 파일을 업로드하면 자동으로 분석해드립니다.")
+
+    data_file = st.file_uploader(
+        "파일 업로드",
+        type=["csv", "xlsx", "xls", "json"],
+        label_visibility="collapsed",
+    )
+
+    if data_file:
+        # 파일 읽기
+        try:
+            ext = data_file.name.split(".")[-1].lower()
+            if ext == "csv":
+                df = pd.read_csv(data_file)
+            elif ext in ("xlsx", "xls"):
+                df = pd.read_excel(data_file)
+            elif ext == "json":
+                df = pd.read_json(data_file)
+            st.session_state.analysis_df = df
+        except Exception as e:
+            st.error(f"파일 읽기 실패: {e}")
+            st.stop()
+
+    if "analysis_df" in st.session_state:
+        df = st.session_state.analysis_df
+
+        # 기본 정보
+        st.markdown("### 📋 데이터 미리보기")
+        ic1, ic2, ic3 = st.columns(3)
+        ic1.metric("행 수", f"{df.shape[0]:,}")
+        ic2.metric("열 수", f"{df.shape[1]:,}")
+        ic3.metric("결측값", f"{df.isnull().sum().sum():,}")
+
+        st.dataframe(df.head(20), use_container_width=True)
+
+        # 기본 통계
+        with st.expander("📈 기본 통계 (describe)"):
+            st.dataframe(df.describe(include="all"), use_container_width=True)
+
+        # 컬럼 정보
+        with st.expander("🔎 컬럼 정보"):
+            col_info = pd.DataFrame({
+                "컬럼명": df.columns,
+                "타입": df.dtypes.values,
+                "결측값": df.isnull().sum().values,
+                "고유값 수": [df[c].nunique() for c in df.columns],
+            })
+            st.dataframe(col_info, use_container_width=True, hide_index=True)
+
+        st.markdown("---")
+        st.markdown("### 📊 차트 시각화")
+
+        num_cols = df.select_dtypes(include="number").columns.tolist()
+        all_cols = df.columns.tolist()
+
+        cc1, cc2, cc3 = st.columns(3)
+        with cc1:
+            chart_type = st.selectbox("차트 종류", ["막대그래프", "선 그래프", "산점도", "히스토그램", "파이차트"])
+        with cc2:
+            x_col = st.selectbox("X축", all_cols)
+        with cc3:
+            if chart_type in ("막대그래프", "선 그래프", "산점도"):
+                y_col = st.selectbox("Y축", num_cols if num_cols else all_cols)
+            else:
+                y_col = None
+
+        try:
+            if chart_type == "막대그래프":
+                fig = px.bar(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col}")
+            elif chart_type == "선 그래프":
+                fig = px.line(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col}")
+            elif chart_type == "산점도":
+                fig = px.scatter(df, x=x_col, y=y_col, title=f"{x_col} vs {y_col}")
+            elif chart_type == "히스토그램":
+                fig = px.histogram(df, x=x_col, title=f"{x_col} 분포")
+            elif chart_type == "파이차트":
+                vc = df[x_col].value_counts().reset_index()
+                vc.columns = [x_col, "count"]
+                fig = px.pie(vc, names=x_col, values="count", title=f"{x_col} 비율")
+            st.plotly_chart(fig, use_container_width=True)
+        except Exception as e:
+            st.warning(f"차트 생성 실패: {e}")
+
+        st.markdown("---")
+        st.markdown("### 🤖 AI 데이터 인사이트")
+        st.caption("AI가 데이터를 읽고 주요 인사이트와 특이점을 분석해드립니다.")
+
+        if st.button("✨ AI 분석 요청", type="primary"):
+            with st.spinner("AI가 데이터를 분석 중입니다..."):
+                sample = df.head(30).to_string()
+                stats = df.describe(include="all").to_string()
+                analysis_prompt = f"""다음 데이터를 분석해주세요.
+
+[데이터 샘플 (상위 30행)]
+{sample}
+
+[기본 통계]
+{stats}
+
+다음 내용을 한국어로 분석해주세요:
+1. 데이터 개요 (어떤 데이터인지)
+2. 주요 인사이트 3~5가지
+3. 특이값 또는 주목할 점
+4. 추가 분석 추천사항"""
+
+                stream = client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": "당신은 데이터 분석 전문가입니다. 주어진 데이터를 명확하고 실용적으로 분석해주세요."},
+                        {"role": "user", "content": analysis_prompt},
+                    ],
+                    temperature=0.3,
+                    max_tokens=1500,
+                    stream=True,
+                )
+                with st.chat_message("assistant"):
+                    st.write_stream(stream)
+    else:
+        st.markdown(
+            "<div style='text-align:center;padding:60px 0;color:#888;'>"
+            "<div style='font-size:3rem;'>📂</div>"
+            "<p>CSV, Excel(.xlsx), JSON 파일을 업로드하세요</p>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
