@@ -1,4 +1,5 @@
 import io
+import base64
 import hashlib
 import json
 import requests
@@ -212,6 +213,19 @@ with tab1:
 
     st.markdown("---")
 
+    # 이미지 첨부
+    st.markdown("##### 🖼️ 이미지 첨부 (선택)")
+    uploaded_image = st.file_uploader(
+        "이미지 업로드",
+        type=["jpg", "jpeg", "png", "webp"],
+        label_visibility="collapsed",
+    )
+    if uploaded_image:
+        st.image(uploaded_image, width=260, caption="첨부된 이미지")
+        st.caption("⚠️ gpt-4o / gpt-4o-mini 이상 모델에서만 이미지 분석 가능")
+
+    st.markdown("---")
+
     active_prompt = st.session_state.pending_prompt
     if active_prompt:
         st.session_state.pending_prompt = None
@@ -220,13 +234,38 @@ with tab1:
     prompt = active_prompt or user_input
 
     if prompt:
-        st.session_state.messages.append({"role": "user", "content": prompt})
+        # 이미지가 첨부된 경우 vision 형식으로 메시지 구성
+        if uploaded_image:
+            uploaded_image.seek(0)
+            img_b64 = base64.b64encode(uploaded_image.read()).decode("utf-8")
+            img_type = uploaded_image.type
+            user_content = [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": f"data:{img_type};base64,{img_b64}"}},
+            ]
+            # 히스토리엔 텍스트만 저장 (base64는 용량이 크므로)
+            st.session_state.messages.append({"role": "user", "content": prompt + " [이미지 첨부]"})
+        else:
+            user_content = prompt
+            st.session_state.messages.append({"role": "user", "content": prompt})
+
         with st.chat_message("user"):
             st.markdown(prompt)
+            if uploaded_image:
+                uploaded_image.seek(0)
+                st.image(uploaded_image, width=260)
+
+        # API 전송용 메시지 (마지막 메시지만 vision 형식 적용)
+        history = st.session_state.messages[:-1]
+        api_messages = (
+            [{"role": "system", "content": SYSTEM_PROMPT}]
+            + [{"role": m["role"], "content": m["content"]} for m in history]
+            + [{"role": "user", "content": user_content}]
+        )
 
         stream = client.chat.completions.create(
             model=model,
-            messages=[{"role": "system", "content": SYSTEM_PROMPT}] + st.session_state.messages,
+            messages=api_messages,
             temperature=temperature,
             max_tokens=max_tokens,
             stream=True,
