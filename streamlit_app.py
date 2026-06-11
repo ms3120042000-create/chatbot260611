@@ -219,12 +219,18 @@ with tab1:
     st.markdown("##### 🖼️ 이미지 첨부 (선택)")
     uploaded_image = st.file_uploader(
         "이미지 업로드",
-        type=["jpg", "jpeg", "png", "webp"],
+        type=None,
         label_visibility="collapsed",
+        help="지원 형식: jpg, jpeg, png, webp",
     )
     if uploaded_image:
-        st.image(uploaded_image, width=260, caption="첨부된 이미지")
-        st.caption("⚠️ gpt-4o / gpt-4o-mini 이상 모델에서만 이미지 분석 가능")
+        ext = uploaded_image.name.split(".")[-1].lower()
+        if ext not in ("jpg", "jpeg", "png", "webp"):
+            st.warning(f"지원하지 않는 형식입니다: .{ext}  |  지원: jpg, jpeg, png, webp")
+            uploaded_image = None
+        else:
+            st.image(uploaded_image, width=260, caption="첨부된 이미지")
+            st.caption("⚠️ gpt-4o / gpt-4o-mini 이상 모델에서만 이미지 분석 가능")
 
     st.markdown("---")
 
