@@ -7,3 +7,4 @@ audio-recorder-streamlit
 pandas
 plotly
 openpyxl
+xlrd

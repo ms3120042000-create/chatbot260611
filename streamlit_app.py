@@ -513,7 +513,7 @@ with tab7:
             if ext == "csv":
                 df = pd.read_csv(data_file)
             elif ext in ("xlsx", "xls"):
-                df = pd.read_excel(data_file)
+                df = pd.read_excel(io.BytesIO(data_file.read()))
             elif ext == "json":
                 df = pd.read_json(data_file)
             st.session_state.analysis_df = df
