@@ -271,8 +271,15 @@ with tab1:
             + [{"role": "user", "content": user_content}]
         )
 
+        # 이미지 첨부 시 Vision 지원 모델로 자동 전환
+        vision_models = ("gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4-vision-preview")
+        active_model = model
+        if uploaded_image and not model.startswith(tuple(vision_models)):
+            active_model = "gpt-4o-mini"
+            st.info("🖼️ 이미지 분석을 위해 **gpt-4o-mini** 모델로 자동 전환됩니다.", icon="ℹ️")
+
         stream = client.chat.completions.create(
-            model=model,
+            model=active_model,
             messages=api_messages,
             temperature=temperature,
             max_tokens=max_tokens,
