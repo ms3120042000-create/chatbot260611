@@ -501,15 +501,18 @@ with tab7:
     st.caption("CSV, Excel, JSON 파일을 업로드하면 자동으로 분석해드립니다.")
 
     data_file = st.file_uploader(
-        "파일 업로드",
-        type=["csv", "xlsx", "xls", "json"],
+        "파일 업로드 (CSV / Excel / JSON)",
+        type=None,
         label_visibility="collapsed",
+        help="지원 형식: .csv, .xlsx, .xls, .json",
     )
 
     if data_file:
-        # 파일 읽기
+        ext = data_file.name.split(".")[-1].lower()
+        if ext not in ("csv", "xlsx", "xls", "json"):
+            st.error(f"지원하지 않는 형식입니다: .{ext}  |  지원: csv, xlsx, xls, json")
+            st.stop()
         try:
-            ext = data_file.name.split(".")[-1].lower()
             if ext == "csv":
                 df = pd.read_csv(data_file)
             elif ext in ("xlsx", "xls"):
